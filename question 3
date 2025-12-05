@@ -1,0 +1,94 @@
+import java.io.*;
+import java.util.*;
+
+public class ExternalSort {
+
+    public static void externalSort(String inputFile, String outputFile, int chunkSize) throws Exception {
+
+        List<String> tempFiles = new ArrayList<>();
+
+        // -------- Phase 1: Create Sorted Runs --------
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
+            while (true) {
+                List<Integer> chunk = new ArrayList<>(chunkSize);
+                String line;
+
+                for (int i = 0; i < chunkSize; i++) {
+                    line = reader.readLine();
+                    if (line == null) break;
+                    chunk.add(Integer.parseInt(line.trim()));
+                }
+
+                if (chunk.isEmpty()) break;
+
+                Collections.sort(chunk);
+
+                String tempFileName = "temp_" + tempFiles.size() + ".txt";
+                tempFiles.add(tempFileName);
+
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempFileName))) {
+                    for (int num : chunk) {
+                        writer.write(num + "\n");
+                    }
+                }
+            }
+        }
+
+        // -------- Phase 2: Merge Sorted Runs --------
+        PriorityQueue<Node> heap = new PriorityQueue<>();
+        List<BufferedReader> readers = new ArrayList<>();
+
+        for (String file : tempFiles) {
+            BufferedReader r = new BufferedReader(new FileReader(file));
+            readers.add(r);
+
+            String line = r.readLine();
+            if (line != null) {
+                heap.add(new Node(Integer.parseInt(line), readers.size() - 1));
+            }
+        }
+
+        try (BufferedWriter out = new BufferedWriter(new FileWriter(outputFile))) {
+
+            while (!heap.isEmpty()) {
+                Node smallest = heap.poll();
+                out.write(smallest.value + "\n");
+
+                BufferedReader r = readers.get(smallest.fileIndex);
+                String line = r.readLine();
+                if (line != null) {
+                    heap.add(new Node(Integer.parseInt(line), smallest.fileIndex));
+                }
+            }
+        }
+
+        // Close file handles
+        for (BufferedReader r : readers) r.close();
+
+        // -------- Cleanup Temporary Files --------
+        for (String tf : tempFiles) {
+            new File(tf).delete();
+        }
+    }
+
+    // Helper class for heap nodes
+    static class Node implements Comparable<Node> {
+        int value;
+        int fileIndex;
+
+        Node(int value, int fileIndex) {
+            this.value = value;
+            this.fileIndex = fileIndex;
+        }
+
+        @Override
+        public int compareTo(Node other) {
+            return Integer.compare(this.value, other.value);
+        }
+    }
+
+    // Main for testing
+    public static void main(String[] args) throws Exception {
+        externalSort("large_file.txt", "sorted.txt", 100000);
+    }
+}
